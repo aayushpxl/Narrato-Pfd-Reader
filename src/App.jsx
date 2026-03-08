@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiMoon, FiSun, FiBookOpen } from 'react-icons/fi';
 import FileUpload from './components/FileUpload';
+import Reader from './components/Reader';
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -85,11 +86,7 @@ function App() {
         {!pdfFile ? (
           <FileUpload onFileSelect={handleFileSelect} />
         ) : (
-          <div className="animate-fade-in" style={{ textAlign: 'center' }}>
-            <h2>PDF Loaded Successfully</h2>
-            <p>Ready to render reader interface...</p>
-            {/* Future step: Render PDF Reader Component Here */}
-          </div>
+          <Reader file={pdfFile} isBookMode={false} />
         )}
       </main>
     </div>
