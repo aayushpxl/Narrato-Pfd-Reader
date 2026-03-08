@@ -6,23 +6,53 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [pdfFile, setPdfFile] = useState(null);
 
-  // Initialize theme from localStorage or system preference
+  // Default user ID for demonstration (In a real app, use authentication)
+  const userId = 'user_123';
+
+  // Initialize theme from backend or system preference
   useEffect(() => {
-    const savedTheme = localStorage.getItem('narrato-theme');
-    if (savedTheme === 'dark') {
-      setIsDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else if (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setIsDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(`http://localhost:5000/api/settings/${userId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setIsDarkMode(data.theme === 'dark');
+          document.documentElement.setAttribute('data-theme', data.theme);
+        }
+      } catch (error) {
+        console.error("Could not fetch settings. Falling back to local preference.", error);
+        const savedTheme = localStorage.getItem('narrato-theme');
+        if (savedTheme === 'dark') {
+          setIsDarkMode(true);
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else if (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          setIsDarkMode(true);
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      }
+    };
+    
+    fetchSettings();
   }, []);
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
     setIsDarkMode(!isDarkMode);
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('narrato-theme', newTheme);
+
+    // Save preference to backend
+    try {
+      await fetch(`http://localhost:5000/api/settings/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ theme: newTheme }),
+      });
+    } catch (error) {
+       console.error("Could not save settings to backend.", error);
+    }
   };
 
   const handleFileSelect = (file) => {
