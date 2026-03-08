@@ -84,7 +84,7 @@ const ReaderPage = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="main-content" style={{ padding: '1rem' }}>
+      <main style={{ flex: 1, overflow: 'hidden' }}>
           <Reader file={pdfFile} isBookMode={false} userId={user ? user._id : 'guest'} />
       </main>
     </div>

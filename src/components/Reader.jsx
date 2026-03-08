@@ -187,98 +187,95 @@ const Reader = ({ file, isBookMode, userId }) => {
   const rightPageNum = currentPage + 1 <= numPages ? currentPage + 1 : null;
 
   return (
-    <div className="reader-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '1rem' }}>
+    <div style={{ display: 'flex', width: '100%', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
 
-      {/* Book Spread — two PDF pages side by side */}
-      <div className="book-wrapper">
-        <div className={`book-spread ${pageAnim}`} style={{ background: pageColor.value }}>
+      {/* Main area: book + toolbar + read-along */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'auto', padding: '1.5rem 1rem', gap: '1rem' }}>
 
-          {/* Left PDF page */}
-          <div className="book-page book-page-left" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <canvas ref={leftCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
-            <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {currentPage}</div>
+        {/* Book Spread */}
+        <div className="book-wrapper" style={{ flexShrink: 0 }}>
+          <div className={`book-spread ${pageAnim}`} style={{ background: pageColor.value }}>
+            {/* Left PDF page */}
+            <div className="book-page book-page-left" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <canvas ref={leftCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
+              <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {currentPage}</div>
+            </div>
+            {/* Right PDF page */}
+            <div className="book-page book-page-right" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {rightPageNum ? (
+                <>
+                  <canvas ref={rightCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
+                  <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {rightPageNum}</div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.3, color: pageColor.text, fontSize: '0.875rem' }}>End of book</div>
+              )}
+            </div>
           </div>
-
-          {/* Right PDF page */}
-          <div className="book-page book-page-right" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {rightPageNum ? (
-              <>
-                <canvas ref={rightCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
-                <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {rightPageNum}</div>
-              </>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.3, color: pageColor.text, fontSize: '0.875rem' }}>End of book</div>
-            )}
-          </div>
-
         </div>
-      </div>
 
-      {/* Bottom toolbar */}
-      <div className="reader-bottom-bar">
-        <button className="btn btn-icon" onClick={() => changePage('prev')} disabled={currentPage <= 1} style={{ opacity: currentPage <= 1 ? 0.4 : 1 }}>
-          <FiChevronLeft size={20} />
-        </button>
+        {/* Bottom toolbar */}
+        <div className="reader-bottom-bar" style={{ flexShrink: 0 }}>
+          <button className="btn btn-icon" onClick={() => changePage('prev')} disabled={currentPage <= 1} style={{ opacity: currentPage <= 1 ? 0.4 : 1 }}>
+            <FiChevronLeft size={20} />
+          </button>
+          <button className="btn btn-icon" onClick={handlePlayPause} style={{ background: isPlaying ? 'var(--bg-secondary)' : 'var(--accent-primary)', color: isPlaying ? 'var(--text-primary)' : 'white' }}>
+            {isPlaying ? <FiPause size={18} /> : <FiPlay size={18} />}
+          </button>
+          <button className="btn btn-icon" onClick={handleStop}><FiSquare size={18} /></button>
+          <span style={{ fontWeight: '600', fontSize: '0.8rem', minWidth: '100px', textAlign: 'center' }}>
+            {currentPage}{rightPageNum ? `–${rightPageNum}` : ''} / {numPages || '--'}
+          </span>
+          <button className="btn btn-icon" onClick={() => changePage('next')} disabled={currentPage + 2 > numPages && currentPage >= numPages} style={{ opacity: (currentPage + 2 > numPages && currentPage >= numPages) ? 0.4 : 1 }}>
+            <FiChevronRight size={20} />
+          </button>
+          <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
+          <button className="btn btn-icon" onClick={() => setShowText(!showText)} title="Toggle Read-Along Text">
+            <FiBookOpen size={18} />
+          </button>
+        </div>
 
-        <button className="btn btn-icon" onClick={handlePlayPause} style={{ background: isPlaying ? 'var(--bg-secondary)' : 'var(--accent-primary)', color: isPlaying ? 'var(--text-primary)' : 'white' }}>
-          {isPlaying ? <FiPause size={18} /> : <FiPlay size={18} />}
-        </button>
-        <button className="btn btn-icon" onClick={handleStop}><FiSquare size={18} /></button>
-
-        <span style={{ fontWeight: '600', fontSize: '0.8rem', minWidth: '100px', textAlign: 'center' }}>
-          {currentPage}{rightPageNum ? `–${rightPageNum}` : ''} / {numPages || '--'}
-        </span>
-
-        <button className="btn btn-icon" onClick={() => changePage('next')} disabled={currentPage + 2 > numPages && currentPage >= numPages} style={{ opacity: (currentPage + 2 > numPages && currentPage >= numPages) ? 0.4 : 1 }}>
-          <FiChevronRight size={20} />
-        </button>
-
-        <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
-
-        <button className="btn btn-icon" onClick={() => setShowText(!showText)} title="Toggle Read-Along Text">
-          <FiBookOpen size={18} />
-        </button>
-        <button className="btn btn-icon" onClick={() => setShowPanel(!showPanel)} title="Customize">
-          <FiSettings size={18} />
-        </button>
-      </div>
-
-      {/* Read-Along Text (collapsible below the book) */}
-      {showText && (
-        <div className="animate-fade-in" style={{
-          width: '100%', maxWidth: '800px',
-          background: pageColor.value, color: pageColor.text,
-          fontFamily, fontSize: `${fontSize}px`, lineHeight,
-          padding: '2rem', borderRadius: 'var(--radius-xl)',
-          border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)',
-          maxHeight: '300px', overflowY: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4 }}>Read Along — Page {currentPage}</span>
-            <button className="btn btn-icon" onClick={() => setShowText(false)} style={{ padding: '0.25rem' }}><FiX size={14} /></button>
-          </div>
-          {words.length > 0 ? (
-            <p>
-              {words.map((word, i) => (
+        {/* Read-Along Text (collapsible) */}
+        {showText && (
+          <div className="animate-fade-in" style={{
+            width: '100%', maxWidth: '800px', flexShrink: 0,
+            background: pageColor.value, color: pageColor.text,
+            fontFamily, fontSize: `${fontSize}px`, lineHeight,
+            padding: '1.5rem', borderRadius: 'var(--radius-xl)',
+            border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)',
+            maxHeight: '250px', overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4 }}>Read Along — Page {currentPage}</span>
+              <button className="btn btn-icon" onClick={() => setShowText(false)} style={{ padding: '0.25rem' }}><FiX size={14} /></button>
+            </div>
+            {words.length > 0 ? (
+              <p>{words.map((word, i) => (
                 <span key={i} style={{
                   backgroundColor: i === currentWordIndex ? 'var(--accent-glow)' : 'transparent',
                   color: i === currentWordIndex ? 'var(--accent-primary)' : pageColor.text,
                   borderRadius: '3px', padding: '0 1px', transition: 'background-color 0.1s ease'
                 }}>{word}{' '}</span>
-              ))}
-            </p>
-          ) : (
-            <p style={{ opacity: 0.4 }}>Extracting text...</p>
-          )}
-        </div>
-      )}
+              ))}</p>
+            ) : (
+              <p style={{ opacity: 0.4 }}>Extracting text...</p>
+            )}
+          </div>
+        )}
 
-      {/* Customization Panel */}
-      <div className={`customize-panel ${showPanel ? 'open' : ''}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h3 style={{ margin: 0, paddingBottom: 0, border: 'none' }}>Customize Reader</h3>
-          <button className="btn btn-icon" onClick={() => setShowPanel(false)}><FiX size={18} /></button>
-        </div>
+      </div>
+
+      {/* Right Sidebar — always visible */}
+      <aside style={{
+        width: '260px', flexShrink: 0,
+        background: 'var(--bg-secondary)',
+        borderLeft: '1px solid var(--border-color)',
+        padding: '1.25rem', overflowY: 'auto',
+        display: 'flex', flexDirection: 'column', gap: '0'
+      }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FiSettings size={16} /> Customize</span>
+        </h3>
 
         <div className="ctrl-group">
           <label>Font Family</label>
@@ -309,10 +306,15 @@ const Reader = ({ file, isBookMode, userId }) => {
             ))}
           </div>
         </div>
-      </div>
+
+        <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+          {file?.name || 'No file loaded'}
+        </div>
+      </aside>
 
     </div>
   );
 };
 
 export default Reader;
+
