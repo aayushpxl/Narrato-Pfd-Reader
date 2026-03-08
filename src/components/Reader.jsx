@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker?url';
-import { FiChevronLeft, FiChevronRight, FiPlay, FiPause, FiSquare, FiSettings, FiX } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiPlay, FiPause, FiSquare, FiSettings, FiX, FiBookOpen } from 'react-icons/fi';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -14,9 +14,7 @@ const PAGE_COLORS = [
   { name: 'Dark', value: '#111827', text: '#d1d5db' },
 ];
 
-const FONTS = [
-  'Inter', 'Georgia', 'Merriweather', 'Lora', 'monospace'
-];
+const FONTS = ['Inter', 'Georgia', 'Merriweather', 'Lora', 'monospace'];
 
 const Reader = ({ file, isBookMode, userId }) => {
   const [pdf, setPdf] = useState(null);
@@ -24,225 +22,186 @@ const Reader = ({ file, isBookMode, userId }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfTextContent, setPdfTextContent] = useState('');
   const [pageAnim, setPageAnim] = useState('');
+  const [showText, setShowText] = useState(false);
 
-  // Customization state
+  // Customization
   const [showPanel, setShowPanel] = useState(false);
-  const [fontSize, setFontSize] = useState(16);
+  const [fontSize, setFontSize] = useState(15);
   const [lineHeight, setLineHeight] = useState(1.8);
   const [fontFamily, setFontFamily] = useState('Georgia');
-  const [pageColor, setPageColor] = useState(PAGE_COLORS[1]); // Cream default
+  const [pageColor, setPageColor] = useState(PAGE_COLORS[1]);
 
-  // TTS State
+  // TTS
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const synth = window.speechSynthesis;
   const utteranceRef = useRef(null);
 
-  const canvasRef = useRef(null);
-  const renderTaskRef = useRef(null);
+  const leftCanvasRef = useRef(null);
+  const rightCanvasRef = useRef(null);
+  const renderTaskLeftRef = useRef(null);
+  const renderTaskRightRef = useRef(null);
 
-  // Load the document and previous reading progress
+  // Load PDF
   useEffect(() => {
-    const loadPdfAndProgress = async () => {
+    const load = async () => {
       if (!file) return;
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const loadedPdf = await loadingTask.promise;
-        setPdf(loadedPdf);
-        setNumPages(loadedPdf.numPages);
+        const ab = await file.arrayBuffer();
+        const loaded = await pdfjsLib.getDocument({ data: ab }).promise;
+        setPdf(loaded);
+        setNumPages(loaded.numPages);
 
         try {
-          if (!userId || userId === 'guest') {
-            setCurrentPage(1);
-            return;
-          }
-          const response = await fetch(`http://localhost:5000/api/settings/${userId}`);
-          if (response.ok) {
-            const data = await response.json();
-            const progress = data.readingProgress?.find(p => p.pdfId === file.name);
-            if (progress && progress.lastPageRead <= loadedPdf.numPages) {
-              setCurrentPage(progress.lastPageRead);
+          if (!userId || userId === 'guest') { setCurrentPage(1); return; }
+          const res = await fetch(`http://localhost:5000/api/settings/${userId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const prog = data.readingProgress?.find(p => p.pdfId === file.name);
+            if (prog && prog.lastPageRead <= loaded.numPages) {
+              setCurrentPage(prog.lastPageRead);
             } else { setCurrentPage(1); }
           } else { setCurrentPage(1); }
-        } catch (apiError) {
-          console.error("Could not fetch progress:", apiError);
-          setCurrentPage(1);
-        }
-      } catch (error) {
-        console.error("Error loading PDF:", error);
-      }
+        } catch { setCurrentPage(1); }
+      } catch (err) { console.error("Error loading PDF:", err); }
     };
-    loadPdfAndProgress();
+    load();
   }, [file]);
 
-  // Render the current page to hidden canvas
-  const renderPage = useCallback(async (pageNum) => {
+  // Render a single page to a canvas
+  const renderSinglePage = useCallback(async (pageNum, canvasRef, taskRef) => {
     if (!pdf || !canvasRef.current) return;
     try {
       const page = await pdf.getPage(pageNum);
       const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
-      const viewport = page.getViewport({ scale: 1.5 });
+      const ctx = canvas.getContext('2d');
+
+      // Fit to container width (~380px per side)
+      const desiredWidth = 380;
+      const unscaledViewport = page.getViewport({ scale: 1 });
+      const scale = desiredWidth / unscaledViewport.width;
+      const viewport = page.getViewport({ scale });
+
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
-      if (renderTaskRef.current) {
-        renderTaskRef.current.cancel();
-      }
-      const renderTask = page.render({ canvasContext: context, viewport });
-      renderTaskRef.current = renderTask;
-      await renderTask.promise;
+      if (taskRef.current) { taskRef.current.cancel(); }
 
-      const textContent = await page.getTextContent();
-      const textItems = textContent.items.map(item => item.str).join(' ');
-      setPdfTextContent(textItems);
+      const task = page.render({ canvasContext: ctx, viewport });
+      taskRef.current = task;
+      await task.promise;
+    } catch (err) {
+      if (err.name !== "RenderingCancelledException") console.error(err);
+    }
+  }, [pdf]);
+
+  // Render two-page spread + extract text from left page
+  useEffect(() => {
+    if (!pdf) return;
+
+    const renderSpread = async () => {
+      // Left page = currentPage (always odd for proper book feel, but we allow any)
+      await renderSinglePage(currentPage, leftCanvasRef, renderTaskLeftRef);
+
+      // Right page = currentPage + 1
+      if (currentPage + 1 <= numPages) {
+        await renderSinglePage(currentPage + 1, rightCanvasRef, renderTaskRightRef);
+      } else if (rightCanvasRef.current) {
+        // Clear right canvas if no next page
+        const ctx = rightCanvasRef.current.getContext('2d');
+        rightCanvasRef.current.width = 380;
+        rightCanvasRef.current.height = 520;
+        ctx.clearRect(0, 0, 380, 520);
+      }
+
+      // Extract text from current page for TTS
+      try {
+        const page = await pdf.getPage(currentPage);
+        const tc = await page.getTextContent();
+        setPdfTextContent(tc.items.map(i => i.str).join(' '));
+      } catch { setPdfTextContent(''); }
 
       synth.cancel();
       setIsPlaying(false);
       setCurrentWordIndex(-1);
-    } catch (error) {
-      if (error.name !== "RenderingCancelledException") {
-        console.error("Error rendering page:", error);
+    };
+
+    renderSpread();
+
+    // Save progress
+    const timer = setTimeout(() => {
+      if (file && userId && userId !== 'guest') {
+        fetch(`http://localhost:5000/api/settings/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ readingProgress: { pdfId: file.name, lastPageRead: currentPage } })
+        }).catch(() => {});
       }
-    }
-  }, [pdf]);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [pdf, currentPage, numPages, renderSinglePage, file, userId]);
 
-  const saveReadingProgress = async (page) => {
-    try {
-      if (!file || !userId || userId === 'guest') return;
-      await fetch(`http://localhost:5000/api/settings/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ readingProgress: { pdfId: file.name, lastPageRead: page } })
-      });
-    } catch (error) {
-      console.error("Could not save reading progress", error);
-    }
-  };
-
-  useEffect(() => {
-    if (pdf) {
-      renderPage(currentPage);
-      const timer = setTimeout(() => { saveReadingProgress(currentPage); }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [pdf, currentPage, renderPage, file]);
-
-  const changePage = (direction) => {
-    const nextPage = direction === 'next' ? currentPage + 1 : currentPage - 1;
-    if (nextPage < 1 || nextPage > numPages) return;
+  const changePage = (dir) => {
+    // Move by 2 pages at a time (book spread)
+    const step = 2;
+    const next = dir === 'next' ? currentPage + step : currentPage - step;
+    if (next < 1) { if (currentPage > 1) { setPageAnim('page-turning-out'); setTimeout(() => { setCurrentPage(1); setPageAnim('page-turning-in'); setTimeout(() => setPageAnim(''), 350); }, 300); } return; }
+    if (next > numPages) return;
 
     setPageAnim('page-turning-out');
     setTimeout(() => {
-      setCurrentPage(nextPage);
+      setCurrentPage(next);
       setPageAnim('page-turning-in');
       setTimeout(() => setPageAnim(''), 350);
     }, 300);
   };
 
   const handlePlayPause = () => {
-    if (isPlaying) {
-      synth.pause();
-      setIsPlaying(false);
-    } else {
-      if (synth.paused) {
-        synth.resume();
+    if (isPlaying) { synth.pause(); setIsPlaying(false); }
+    else {
+      if (synth.paused) { synth.resume(); setIsPlaying(true); }
+      else {
+        const utt = new SpeechSynthesisUtterance(pdfTextContent);
+        utt.rate = 1.0;
+        utt.onboundary = (e) => { if (e.name === 'word') { setCurrentWordIndex(pdfTextContent.substring(0, e.charIndex).split(/\s+/).length - 1); } };
+        utt.onend = () => { setIsPlaying(false); setCurrentWordIndex(-1); };
+        utteranceRef.current = utt;
+        synth.speak(utt);
         setIsPlaying(true);
-      } else {
-        const utterance = new SpeechSynthesisUtterance(pdfTextContent);
-        utterance.rate = 1.0;
-        utterance.onboundary = (event) => {
-          if (event.name === 'word') {
-            const subStr = pdfTextContent.substring(0, event.charIndex);
-            const wordIndex = subStr.split(/\s+/).length - 1;
-            setCurrentWordIndex(wordIndex);
-          }
-        };
-        utterance.onend = () => {
-          setIsPlaying(false);
-          setCurrentWordIndex(-1);
-        };
-        utteranceRef.current = utterance;
-        synth.speak(utterance);
-        setIsPlaying(true);
+        setShowText(true);
       }
     }
   };
 
-  const handleStop = () => {
-    synth.cancel();
-    setIsPlaying(false);
-    setCurrentWordIndex(-1);
-  };
+  const handleStop = () => { synth.cancel(); setIsPlaying(false); setCurrentWordIndex(-1); };
 
-  useEffect(() => {
-    return () => { synth.cancel(); };
-  }, [synth]);
+  useEffect(() => { return () => { synth.cancel(); }; }, [synth]);
 
   const words = pdfTextContent ? pdfTextContent.split(/\s+/) : [];
+  const rightPageNum = currentPage + 1 <= numPages ? currentPage + 1 : null;
 
   return (
-    <div className="reader-container animate-fade-in" style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '1rem'
-    }}>
+    <div className="reader-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '1rem' }}>
 
-      {/* Hidden canvas for PDF rendering */}
-      <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
-
-      {/* Book Spread */}
+      {/* Book Spread — two PDF pages side by side */}
       <div className="book-wrapper">
-        <div className="book-spread" style={{ background: pageColor.value }}>
+        <div className={`book-spread ${pageAnim}`} style={{ background: pageColor.value }}>
 
-          {/* Left page: rendered PDF image */}
-          <div className={`book-page book-page-left ${pageAnim}`} style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '1rem', background: pageColor.value }}>
-            <canvas ref={(el) => {
-              // Copy the hidden canvas image to this visible one
-              if (el && canvasRef.current && canvasRef.current.width > 0) {
-                const ctx = el.getContext('2d');
-                const src = canvasRef.current;
-                // Scale to fit the page
-                const maxW = 360;
-                const ratio = src.height / src.width;
-                el.width = maxW;
-                el.height = maxW * ratio;
-                ctx.drawImage(src, 0, 0, el.width, el.height);
-              }
-            }} style={{ maxWidth: '100%', height: 'auto', borderRadius: '4px' }}></canvas>
+          {/* Left PDF page */}
+          <div className="book-page book-page-left" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <canvas ref={leftCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
+            <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {currentPage}</div>
           </div>
 
-          {/* Right page: read-along text */}
-          <div className={`book-page book-page-right ${pageAnim}`} style={{
-            color: pageColor.text,
-            fontFamily: fontFamily,
-            fontSize: `${fontSize}px`,
-            lineHeight: lineHeight,
-            background: pageColor.value
-          }}>
-            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: pageColor.text, opacity: 0.4, marginBottom: '1rem' }}>
-              Page {currentPage} of {numPages || '--'}
-            </div>
-
-            {words.length > 0 ? (
-              <p>
-                {words.map((word, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      backgroundColor: index === currentWordIndex ? 'var(--accent-glow)' : 'transparent',
-                      color: index === currentWordIndex ? 'var(--accent-primary)' : pageColor.text,
-                      borderRadius: '3px',
-                      padding: '0 1px',
-                      transition: 'background-color 0.1s ease',
-                      display: 'inline'
-                    }}
-                  >
-                    {word}{' '}
-                  </span>
-                ))}
-              </p>
+          {/* Right PDF page */}
+          <div className="book-page book-page-right" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {rightPageNum ? (
+              <>
+                <canvas ref={rightCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
+                <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {rightPageNum}</div>
+              </>
             ) : (
-              <p style={{ opacity: 0.4 }}>Extracting text...</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.3, color: pageColor.text, fontSize: '0.875rem' }}>End of book</div>
             )}
           </div>
 
@@ -258,29 +217,60 @@ const Reader = ({ file, isBookMode, userId }) => {
         <button className="btn btn-icon" onClick={handlePlayPause} style={{ background: isPlaying ? 'var(--bg-secondary)' : 'var(--accent-primary)', color: isPlaying ? 'var(--text-primary)' : 'white' }}>
           {isPlaying ? <FiPause size={18} /> : <FiPlay size={18} />}
         </button>
-        <button className="btn btn-icon" onClick={handleStop}>
-          <FiSquare size={18} />
-        </button>
+        <button className="btn btn-icon" onClick={handleStop}><FiSquare size={18} /></button>
 
-        <span style={{ fontWeight: '600', fontSize: '0.8rem', minWidth: '80px', textAlign: 'center' }}>
-          {currentPage} / {numPages || '--'}
+        <span style={{ fontWeight: '600', fontSize: '0.8rem', minWidth: '100px', textAlign: 'center' }}>
+          {currentPage}{rightPageNum ? `–${rightPageNum}` : ''} / {numPages || '--'}
         </span>
 
-        <button className="btn btn-icon" onClick={() => changePage('next')} disabled={currentPage >= numPages} style={{ opacity: currentPage >= numPages ? 0.4 : 1 }}>
+        <button className="btn btn-icon" onClick={() => changePage('next')} disabled={currentPage + 2 > numPages && currentPage >= numPages} style={{ opacity: (currentPage + 2 > numPages && currentPage >= numPages) ? 0.4 : 1 }}>
           <FiChevronRight size={20} />
         </button>
 
         <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
 
+        <button className="btn btn-icon" onClick={() => setShowText(!showText)} title="Toggle Read-Along Text">
+          <FiBookOpen size={18} />
+        </button>
         <button className="btn btn-icon" onClick={() => setShowPanel(!showPanel)} title="Customize">
           <FiSettings size={18} />
         </button>
       </div>
 
+      {/* Read-Along Text (collapsible below the book) */}
+      {showText && (
+        <div className="animate-fade-in" style={{
+          width: '100%', maxWidth: '800px',
+          background: pageColor.value, color: pageColor.text,
+          fontFamily, fontSize: `${fontSize}px`, lineHeight,
+          padding: '2rem', borderRadius: 'var(--radius-xl)',
+          border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)',
+          maxHeight: '300px', overflowY: 'auto'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4 }}>Read Along — Page {currentPage}</span>
+            <button className="btn btn-icon" onClick={() => setShowText(false)} style={{ padding: '0.25rem' }}><FiX size={14} /></button>
+          </div>
+          {words.length > 0 ? (
+            <p>
+              {words.map((word, i) => (
+                <span key={i} style={{
+                  backgroundColor: i === currentWordIndex ? 'var(--accent-glow)' : 'transparent',
+                  color: i === currentWordIndex ? 'var(--accent-primary)' : pageColor.text,
+                  borderRadius: '3px', padding: '0 1px', transition: 'background-color 0.1s ease'
+                }}>{word}{' '}</span>
+              ))}
+            </p>
+          ) : (
+            <p style={{ opacity: 0.4 }}>Extracting text...</p>
+          )}
+        </div>
+      )}
+
       {/* Customization Panel */}
       <div className={`customize-panel ${showPanel ? 'open' : ''}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Customize Reader</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h3 style={{ margin: 0, paddingBottom: 0, border: 'none' }}>Customize Reader</h3>
           <button className="btn btn-icon" onClick={() => setShowPanel(false)}><FiX size={18} /></button>
         </div>
 
@@ -307,13 +297,9 @@ const Reader = ({ file, isBookMode, userId }) => {
           <label>Page Color</label>
           <div className="color-swatches">
             {PAGE_COLORS.map((c) => (
-              <div
-                key={c.name}
-                className={`color-swatch ${pageColor.name === c.name ? 'active' : ''}`}
+              <div key={c.name} className={`color-swatch ${pageColor.name === c.name ? 'active' : ''}`}
                 style={{ backgroundColor: c.value, border: c.value === '#ffffff' ? '2px solid #e2e8f0' : undefined }}
-                onClick={() => setPageColor(c)}
-                title={c.name}
-              />
+                onClick={() => setPageColor(c)} title={c.name} />
             ))}
           </div>
         </div>
