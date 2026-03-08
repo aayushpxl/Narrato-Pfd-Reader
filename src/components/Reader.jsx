@@ -76,14 +76,18 @@ const Reader = ({ file, isBookMode, userId }) => {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
 
-      // Fit to container width (~380px per side)
-      const desiredWidth = 380;
+      // Render at 2x resolution for crisp text, CSS will scale it down
+      const displayWidth = 480;
+      const renderScale = 2;
       const unscaledViewport = page.getViewport({ scale: 1 });
-      const scale = desiredWidth / unscaledViewport.width;
+      const scale = (displayWidth * renderScale) / unscaledViewport.width;
       const viewport = page.getViewport({ scale });
 
       canvas.width = viewport.width;
       canvas.height = viewport.height;
+      // CSS display size — sharp on screen
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${(displayWidth * viewport.height) / viewport.width}px`;
 
       if (taskRef.current) { taskRef.current.cancel(); }
 
@@ -109,9 +113,11 @@ const Reader = ({ file, isBookMode, userId }) => {
       } else if (rightCanvasRef.current) {
         // Clear right canvas if no next page
         const ctx = rightCanvasRef.current.getContext('2d');
-        rightCanvasRef.current.width = 380;
-        rightCanvasRef.current.height = 520;
-        ctx.clearRect(0, 0, 380, 520);
+        rightCanvasRef.current.width = 960;
+        rightCanvasRef.current.height = 1320;
+        rightCanvasRef.current.style.width = '480px';
+        rightCanvasRef.current.style.height = '660px';
+        ctx.clearRect(0, 0, 960, 1320);
       }
 
       // Extract text from current page for TTS
