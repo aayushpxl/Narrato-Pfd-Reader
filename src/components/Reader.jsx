@@ -21,9 +21,9 @@ const Reader = ({ file, isBookMode }) => {
   const canvasRef = useRef(null);
   const renderTaskRef = useRef(null);
 
-  // Load the document
+// Load the document and previous reading progress
   useEffect(() => {
-    const loadPdf = async () => {
+    const loadPdfAndProgress = async () => {
       if (!file) return;
 
       try {
@@ -33,13 +33,32 @@ const Reader = ({ file, isBookMode }) => {
         
         setPdf(loadedPdf);
         setNumPages(loadedPdf.numPages);
-        setCurrentPage(1); // Reset to first page on new file
+        
+        // Fetch reading progress from backend
+        try {
+          const response = await fetch(`http://localhost:5000/api/settings/user_123`);
+          if (response.ok) {
+            const data = await response.json();
+            const progress = data.readingProgress?.find(p => p.pdfId === file.name);
+            if (progress && progress.lastPageRead <= loadedPdf.numPages) {
+               setCurrentPage(progress.lastPageRead);
+            } else {
+               setCurrentPage(1);
+            }
+          } else {
+             setCurrentPage(1);
+          }
+        } catch (apiError) {
+          console.error("Could not fetch progress from backend:", apiError);
+          setCurrentPage(1);
+        }
+
       } catch (error) {
         console.error("Error loading PDF:", error);
       }
     };
 
-    loadPdf();
+    loadPdfAndProgress();
   }, [file]);
 
   // Render the current page
@@ -89,12 +108,36 @@ const Reader = ({ file, isBookMode }) => {
     }
   }, [pdf]);
 
+  // Save progress when page changes
+  const saveReadingProgress = async (page) => {
+    try {
+      if (!file) return;
+      await fetch(`http://localhost:5000/api/settings/user_123`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          readingProgress: {
+            pdfId: file.name,
+            lastPageRead: page
+          }
+        })
+      });
+    } catch (error) {
+      console.error("Could not save reading progress", error);
+    }
+  };
+
   // Re-render when page changes
   useEffect(() => {
     if (pdf) {
       renderPage(currentPage);
+      // Small debounce to avoid spamming the backend if user clicks through pages super fast
+      const timer = setTimeout(() => {
+        saveReadingProgress(currentPage);
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [pdf, currentPage, renderPage]);
+  }, [pdf, currentPage, renderPage, file]);
 
   const handlePrevPage = () => {
     if (currentPage > 1) {

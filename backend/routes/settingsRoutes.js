@@ -25,12 +25,12 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// @desc    Update user settings
+// @desc    Update user settings and reading progress
 // @route   PUT /api/settings/:userId
 // @access  Public
 router.put('/:userId', async (req, res) => {
   try {
-    const { theme, voice, speechRate } = req.body;
+    const { theme, voice, speechRate, readingProgress } = req.body;
     
     let settings = await UserSettings.findOne({ userId: req.params.userId });
 
@@ -39,15 +39,34 @@ router.put('/:userId', async (req, res) => {
       settings.voice = voice || settings.voice;
       settings.speechRate = speechRate || settings.speechRate;
       
+      // Update reading progress for a specific PDF
+      if (readingProgress && readingProgress.pdfId) {
+        const existingProgressIndex = settings.readingProgress.findIndex(
+          (p) => p.pdfId === readingProgress.pdfId
+        );
+
+        if (existingProgressIndex >= 0) {
+          settings.readingProgress[existingProgressIndex].lastPageRead = readingProgress.lastPageRead;
+        } else {
+          settings.readingProgress.push(readingProgress);
+        }
+      }
+      
       const updatedSettings = await settings.save();
       res.json(updatedSettings);
     } else {
        // Create new settings document if it doesn't exist
+       let newProgress = [];
+       if (readingProgress && readingProgress.pdfId) {
+           newProgress.push(readingProgress);
+       }
+
        settings = await UserSettings.create({
          userId: req.params.userId,
-         theme,
-         voice,
-         speechRate
+         theme: theme || 'light',
+         voice: voice || 'default',
+         speechRate: speechRate || 1.0,
+         readingProgress: newProgress
        });
        res.status(201).json(settings);
     }
