@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FiUploadCloud, FiFileText } from 'react-icons/fi';
+import { FiUploadCloud, FiFileText, FiZap } from 'react-icons/fi';
 
 const FileUpload = ({ onFileSelect }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -37,7 +37,7 @@ const FileUpload = ({ onFileSelect }) => {
   }, [onFileSelect]);
 
   return (
-    <div className="animate-fade-in" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
       <label 
         className={`dropzone ${isDragging ? 'drag-active' : ''}`}
         onDragOver={handleDragOver}
@@ -53,15 +53,22 @@ const FileUpload = ({ onFileSelect }) => {
         
         {selectedFile ? (
           <>
-            <FiFileText className="dropzone-icon" />
+            <div className="dropzone-icon-wrap">
+              <FiFileText className="dropzone-icon" />
+            </div>
             <h2 className="dropzone-title">{selectedFile.name}</h2>
             <p className="dropzone-text">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
           </>
         ) : (
           <>
-            <FiUploadCloud className="dropzone-icon" />
-            <h2 className="dropzone-title">Upload your PDF Book</h2>
-            <p className="dropzone-text">Drag & drop a file here, or click to select one</p>
+            <div className="dropzone-icon-wrap">
+              <FiUploadCloud className="dropzone-icon" />
+            </div>
+            <h2 className="dropzone-title">Drop your PDF here</h2>
+            <p className="dropzone-text">or click to browse your files</p>
+            <div className="dropzone-badge">
+              <FiZap size={12} /> Instant processing
+            </div>
           </>
         )}
       </label>
