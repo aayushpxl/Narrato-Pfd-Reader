@@ -16,7 +16,8 @@ const ReaderPage = () => {
 
   useEffect(() => {
     if (!pdfFile) {
-        navigate('/dashboard');
+        // If there's no file, send them to the root landing page if essentially unauthenticated, otherwise dashboard
+        navigate(user ? '/dashboard' : '/');
         return;
     }
 
@@ -62,7 +63,7 @@ const ReaderPage = () => {
       {/* Header */}
       <header className="header animate-fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={() => navigate('/dashboard')} className="btn btn-icon" title="Back to Dashboard">
+          <button onClick={() => navigate(user ? '/dashboard' : '/')} className="btn btn-icon" title={user ? "Back to Dashboard" : "Back Home"}>
             <FiArrowLeft size={20} />
           </button>
           <div className="logo" style={{ fontSize: '1.2rem' }}>

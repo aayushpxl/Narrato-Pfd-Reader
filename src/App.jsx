@@ -4,6 +4,7 @@ import { AuthProvider, AuthContext } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ReaderPage from './pages/ReaderPage';
+import Landing from './pages/Landing';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -20,6 +21,7 @@ const ProtectedRoute = ({ children }) => {
 function AppContent() {
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route 
         path="/dashboard" 
@@ -29,15 +31,9 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
-      <Route 
-        path="/reader" 
-        element={
-          <ProtectedRoute>
-            <ReaderPage />
-          </ProtectedRoute>
-        } 
-      />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* ReaderPage is now public so anyone can read without logging in */}
+      <Route path="/reader" element={<ReaderPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
