@@ -6,7 +6,7 @@ import { FiChevronLeft, FiChevronRight, FiPlay, FiPause, FiSquare } from 'react-
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-const Reader = ({ file, isBookMode }) => {
+const Reader = ({ file, isBookMode, userId }) => {
   const [pdf, setPdf] = useState(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,7 +36,13 @@ const Reader = ({ file, isBookMode }) => {
         
         // Fetch reading progress from backend
         try {
-          const response = await fetch(`http://localhost:5000/api/settings/user_123`);
+          // If userId isn't provided (or strictly guest), don't fetch progress
+          if (!userId || userId === 'guest') {
+             setCurrentPage(1);
+             return;
+          }
+
+          const response = await fetch(`http://localhost:5000/api/settings/${userId}`);
           if (response.ok) {
             const data = await response.json();
             const progress = data.readingProgress?.find(p => p.pdfId === file.name);
@@ -111,8 +117,8 @@ const Reader = ({ file, isBookMode }) => {
   // Save progress when page changes
   const saveReadingProgress = async (page) => {
     try {
-      if (!file) return;
-      await fetch(`http://localhost:5000/api/settings/user_123`, {
+      if (!file || !userId || userId === 'guest') return;
+      await fetch(`http://localhost:5000/api/settings/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
