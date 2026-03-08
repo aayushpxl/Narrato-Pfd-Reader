@@ -25,7 +25,7 @@ const Reader = ({ file, isBookMode, userId }) => {
   const [showText, setShowText] = useState(false);
 
   // Customization
-  const [showPanel, setShowPanel] = useState(false);
+  const [showPanel, setShowPanel] = useState(true);
   const [fontSize, setFontSize] = useState(15);
   const [lineHeight, setLineHeight] = useState(1.8);
   const [fontFamily, setFontFamily] = useState('Georgia');
@@ -233,6 +233,9 @@ const Reader = ({ file, isBookMode, userId }) => {
           <button className="btn btn-icon" onClick={() => setShowText(!showText)} title="Toggle Read-Along Text">
             <FiBookOpen size={18} />
           </button>
+          <button className="btn btn-icon" onClick={() => setShowPanel(!showPanel)} title="Toggle Customize Panel">
+            <FiSettings size={18} />
+          </button>
         </div>
 
         {/* Read-Along Text (collapsible) */}
@@ -265,17 +268,23 @@ const Reader = ({ file, isBookMode, userId }) => {
 
       </div>
 
-      {/* Right Sidebar — always visible */}
+      {/* Right Sidebar — togglable */}
       <aside style={{
-        width: '260px', flexShrink: 0,
+        width: showPanel ? '260px' : '0px',
+        flexShrink: 0,
         background: 'var(--bg-secondary)',
-        borderLeft: '1px solid var(--border-color)',
-        padding: '1.25rem', overflowY: 'auto',
-        display: 'flex', flexDirection: 'column', gap: '0'
+        borderLeft: showPanel ? '1px solid var(--border-color)' : 'none',
+        padding: showPanel ? '1.25rem' : '0',
+        overflowY: 'auto', overflowX: 'hidden',
+        display: 'flex', flexDirection: 'column', gap: '0',
+        transition: 'width 0.3s ease, padding 0.3s ease'
       }}>
-        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FiSettings size={16} /> Customize</span>
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', minWidth: '210px' }}>
+          <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FiSettings size={16} /> Customize</span>
+          </h3>
+          <button className="btn btn-icon" onClick={() => setShowPanel(false)} style={{ padding: '0.25rem' }}><FiX size={16} /></button>
+        </div>
 
         <div className="ctrl-group">
           <label>Font Family</label>
