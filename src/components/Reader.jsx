@@ -96,6 +96,18 @@ const Reader = ({ file, isBookMode }) => {
     }
   }, [pdf, currentPage, renderPage]);
 
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < numPages) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
   const handlePlayPause = () => {
     if (isPlaying) {
       synth.pause();
