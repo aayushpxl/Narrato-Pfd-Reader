@@ -21,8 +21,9 @@ const Reader = ({ file, isBookMode, userId }) => {
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfTextContent, setPdfTextContent] = useState('');
-  const [pageAnim, setPageAnim] = useState('');
+  const [flipState, setFlipState] = useState({ phase: 'idle', direction: null }); // phase: idle | flipping-out | flipping-in
   const [showText, setShowText] = useState(false);
+  const flipTimeoutRef = useRef(null);
 
   // Customization
   const [showPanel, setShowPanel] = useState(true);
@@ -148,19 +149,42 @@ const Reader = ({ file, isBookMode, userId }) => {
   }, [pdf, currentPage, numPages, renderSinglePage, file, userId]);
 
   const changePage = (dir) => {
-    // Move by 2 pages at a time (book spread)
+    if (flipState.phase !== 'idle') return; // prevent double-flip
+
     const step = 2;
     const next = dir === 'next' ? currentPage + step : currentPage - step;
-    if (next < 1) { if (currentPage > 1) { setPageAnim('page-turning-out'); setTimeout(() => { setCurrentPage(1); setPageAnim('page-turning-in'); setTimeout(() => setPageAnim(''), 350); }, 300); } return; }
-    if (next > numPages) return;
 
-    setPageAnim('page-turning-out');
-    setTimeout(() => {
+    if (dir === 'prev' && next < 1) {
+      if (currentPage > 1) {
+        setFlipState({ phase: 'flipping-out', direction: 'backward' });
+        flipTimeoutRef.current = setTimeout(() => {
+          setCurrentPage(1);
+          setFlipState({ phase: 'flipping-in', direction: 'backward' });
+          flipTimeoutRef.current = setTimeout(() => setFlipState({ phase: 'idle', direction: null }), 450);
+        }, 500);
+      }
+      return;
+    }
+    if (dir === 'next' && next > numPages) return;
+
+    const direction = dir === 'next' ? 'forward' : 'backward';
+    setFlipState({ phase: 'flipping-out', direction });
+
+    flipTimeoutRef.current = setTimeout(() => {
       setCurrentPage(next);
-      setPageAnim('page-turning-in');
-      setTimeout(() => setPageAnim(''), 350);
-    }, 300);
+      setFlipState({ phase: 'flipping-in', direction });
+      flipTimeoutRef.current = setTimeout(() => {
+        setFlipState({ phase: 'idle', direction: null });
+      }, 450);
+    }, 500);
   };
+
+  // Cleanup flip timeouts
+  useEffect(() => {
+    return () => {
+      if (flipTimeoutRef.current) clearTimeout(flipTimeoutRef.current);
+    };
+  }, []);
 
   const handlePlayPause = () => {
     if (isPlaying) { synth.pause(); setIsPlaying(false); }
@@ -194,14 +218,33 @@ const Reader = ({ file, isBookMode, userId }) => {
 
         {/* Book Spread */}
         <div className="book-wrapper" style={{ flexShrink: 0 }}>
-          <div className={`book-spread ${pageAnim}`} style={{ background: pageColor.value }}>
+          <div
+            className={`book-spread${
+              flipState.phase === 'flipping-in' && flipState.direction === 'forward' ? ' page-flip-forward-in' :
+              flipState.phase === 'flipping-in' && flipState.direction === 'backward' ? ' page-flip-backward-in' : ''
+            }${
+              flipState.phase === 'flipping-out' && flipState.direction === 'forward' ? ' page-flip-forward-shadow' :
+              flipState.phase === 'flipping-out' && flipState.direction === 'backward' ? ' page-flip-backward-shadow' : ''
+            }`}
+            style={{ background: pageColor.value }}
+          >
             {/* Left PDF page */}
-            <div className="book-page book-page-left" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div
+              className={`book-page book-page-left${
+                flipState.phase === 'flipping-out' && flipState.direction === 'backward' ? ' page-flip-backward-out' : ''
+              }`}
+              style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            >
               <canvas ref={leftCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
               <div style={{ fontSize: '0.65rem', color: pageColor.text, opacity: 0.35, marginTop: '0.5rem' }}>Page {currentPage}</div>
             </div>
             {/* Right PDF page */}
-            <div className="book-page book-page-right" style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div
+              className={`book-page book-page-right${
+                flipState.phase === 'flipping-out' && flipState.direction === 'forward' ? ' page-flip-forward-out' : ''
+              }`}
+              style={{ background: pageColor.value, padding: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            >
               {rightPageNum ? (
                 <>
                   <canvas ref={rightCanvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: '2px' }}></canvas>
